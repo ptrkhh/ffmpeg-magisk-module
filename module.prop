@@ -1,0 +1,6 @@
+id=ffmpeg_systemwide
+name=FFmpeg System-wide
+version=v1.0
+versionCode=1
+author=Magisk Module
+description=Installs FFmpeg binary system-wide for all apps to use. Place your ffmpeg binary in system/bin/ before flashing.
