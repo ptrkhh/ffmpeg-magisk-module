@@ -3,7 +3,7 @@
 # 16KB-alignment assert (MGK-7), compute SHA512s, rewrite lock.
 # Usage: scripts/update-pin.sh <new-tag> [--yes]
 set -eu
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd); cd "$root"
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd); cd "$root"
 . "$root/scripts/lib.sh"
 
 newtag=${1:-}; [ -n "$newtag" ] || { echo "usage: update-pin.sh <new-tag> [--yes]" >&2; exit 2; }
@@ -16,7 +16,7 @@ ASSET="ffmpeg_android_aarch64_gpl.tar.gz"
 # publishes via github-actions[bot], and an author check would be both brittle and weak.
 # Instead assert the release/tag actually exists in that repo AND publishes the expected
 # asset (catches deleted tags / pulled assets — a real STOP condition).
-api=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/tags/$newtag") \
+api=$(curl -fsSL --proto '=https' --tlsv1.2 "https://api.github.com/repos/$REPO/releases/tags/$newtag") \
   || { echo "release tag '$newtag' not found in $REPO — abort" >&2; exit 1; }
 printf '%s' "$api" | grep -qF "\"$ASSET\"" \
   || { echo "asset '$ASSET' not present in $REPO release '$newtag' — abort" >&2; exit 1; }
@@ -25,7 +25,7 @@ printf '%s' "$api" | grep -qF "\"$ASSET\"" \
 if [ "$yes" -ne 1 ]; then
   echo "WARNING: upstream publishes no signature/checksum; this pin trusts bytes served now."
   echo "Audit https://github.com/$REPO/releases/tag/$newtag before continuing."
-  printf "Proceed? [y/N] "; read ans
+  printf "Proceed? [y/N] "; read -r ans
   [ "$ans" = y ] || [ "$ans" = Y ] || { echo aborted; exit 1; }
 fi
 

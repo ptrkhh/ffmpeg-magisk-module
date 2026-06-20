@@ -2,6 +2,7 @@
 # Host-only shared helpers (POSIX sh; NOT run on-device).
 # ffmpeg.lock is DATA, not code — parsed here by strict regex, never sourced (SEC-8).
 
+# shellcheck disable=SC2034  # used by scripts that source this file (fetch/update-pin)
 UPSTREAM_REPO_ALLOWED="yearsyan/ffmpeg-android-build"
 : "${LOCK_FILE:=ffmpeg.lock}"
 

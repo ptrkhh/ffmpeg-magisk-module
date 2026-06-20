@@ -39,7 +39,8 @@ sh scripts/selftest-zip.sh module.zip
 ```bash
 sh scripts/update-pin.sh <upstream-tag>   # rewrites ffmpeg.lock (owner+TOFU+16KB checks)
 git add ffmpeg.lock && git commit -m "build: bump ffmpeg pin"
-git tag vX.Y.Z && git push --tags         # CI builds + publishes the Release
+git tag -a vX.Y.Z -m "release notes"      # ANNOTATED tag; its body becomes changelog.txt
+git push --tags                           # CI builds + publishes the Release
 ```
 
 ## Tested on

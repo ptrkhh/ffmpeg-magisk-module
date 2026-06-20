@@ -3,7 +3,7 @@
 # verifies SHA512 fail-closed, extracts ffmpeg+ffprobe into system/bin.
 # NEVER `curl | tar`: verify-before-extract (spec §6 step 0).
 set -eu
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 . "$root/scripts/lib.sh"
 
