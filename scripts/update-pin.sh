@@ -67,5 +67,13 @@ ASSET_SHA512=$asset_sha
 FFMPEG_SHA512=$ff_sha
 FFPROBE_SHA512=$fp_sha
 EOF
+# GPLv2 §3 (SEC-6): archive the upstream build tree at the pinned tag, so a later
+# upstream deletion cannot strand corresponding-source. Gitignored locally; CI also
+# rebuilds + attaches it to the Release.
+src_tarball="corresponding-source-$newtag.tar.gz"
+curl -fL --proto '=https' --tlsv1.2 -o "$tmp/src.tar.gz" \
+  "https://github.com/$REPO/archive/refs/tags/$newtag.tar.gz"
+cp "$tmp/src.tar.gz" "$src_tarball"
+
 echo "ffmpeg.lock updated -> $newtag (ffmpeg $ver)"
-echo "REMINDER: archive corresponding source (GPLv2 §3) — Task 17 / spec §15."
+echo "wrote $src_tarball (GPLv2 §3 corresponding source)"

@@ -82,6 +82,15 @@ jobs:
         if: github.ref_type == 'tag'
         run: sha256sum "FFmpeg-v${{ steps.vc.outputs.ffmpeg_version }}-for-magisk.arm64.zip" > SHA256SUMS.txt
 
+      - name: Build corresponding-source archive (GPLv2 §3)
+        if: github.ref_type == 'tag'
+        run: |
+          tag=$(grep '^UPSTREAM_TAG=' ffmpeg.lock | cut -d= -f2)
+          repo=$(grep '^UPSTREAM_REPO=' ffmpeg.lock | cut -d= -f2)
+          curl -fL -o "corresponding-source-$tag.tar.gz" \
+            "https://github.com/$repo/archive/refs/tags/$tag.tar.gz"
+          echo "CS_FILE=corresponding-source-$tag.tar.gz" >> "$GITHUB_ENV"
+
       - name: Publish Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -89,6 +98,7 @@ jobs:
           files: |
             FFmpeg-v${{ steps.vc.outputs.ffmpeg_version }}-for-magisk.arm64.zip
             SHA256SUMS.txt
+            ${{ env.CS_FILE }}
 
       - name: Refresh update.json + changelog on main
         if: github.ref_type == 'tag'
