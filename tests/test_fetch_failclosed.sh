@@ -5,7 +5,16 @@ set -eu
 cd "$(dirname "$0")/.."
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d); bak=$(mktemp -d)
+# Preserve any REAL installed binaries so the "no ffmpeg written" assertion below is
+# valid even when binaries are already installed; restore them on exit.
+for b in ffmpeg ffprobe; do if [ -e "system/bin/$b" ]; then mv "system/bin/$b" "$bak/$b"; fi; done
+restore() {
+  rm -f system/bin/ffmpeg system/bin/ffprobe system/bin/.fetch_test_guard
+  for b in ffmpeg ffprobe; do if [ -e "$bak/$b" ]; then mv "$bak/$b" "system/bin/$b"; fi; done
+  rm -rf "$tmp" "$bak"
+}
+trap restore EXIT
 # build a fake upstream tarball with bin/ffmpeg + bin/ffprobe
 mkdir -p "$tmp/up/bin"; echo dummy-ffmpeg > "$tmp/up/bin/ffmpeg"; echo dummy-ffprobe > "$tmp/up/bin/ffprobe"
 ( cd "$tmp/up" && tar -czf "$tmp/asset.tgz" bin )

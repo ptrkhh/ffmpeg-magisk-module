@@ -7,8 +7,16 @@ set -eu
 cd "$(dirname "$0")/.."
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp" system/bin/ffmpeg system/bin/ffprobe' EXIT
+tmp=$(mktemp -d); bak=$(mktemp -d)
+# Preserve any REAL installed binaries so this test never clobbers them (it installs
+# dummies into system/bin). Restore them on exit instead of deleting.
+for b in ffmpeg ffprobe; do if [ -e "system/bin/$b" ]; then mv "system/bin/$b" "$bak/$b"; fi; done
+restore() {
+  rm -f system/bin/ffmpeg system/bin/ffprobe
+  for b in ffmpeg ffprobe; do if [ -e "$bak/$b" ]; then mv "$bak/$b" "system/bin/$b"; fi; done
+  rm -rf "$tmp" "$bak"
+}
+trap restore EXIT
 mkdir -p "$tmp/up/bin"
 echo real-ffmpeg  > "$tmp/up/bin/ffmpeg"
 echo real-ffprobe > "$tmp/up/bin/ffprobe"
