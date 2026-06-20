@@ -149,7 +149,7 @@ Explicit, ordered, **fail-closed** steps (SEC-3):
    which POSIX `sh` does not guarantee) a failed download would be silently hidden.
    Download to a temp file, verify, *then* extract.
 1. **Parse `ffmpeg.lock` — do NOT `source` it (SEC-8).** Read it line-by-line and
-   accept ONLY lines matching `^[A-Z_]+=[A-Za-z0-9._/:+-]+$` (reject/abort on any
+   accept ONLY lines matching `^[A-Z0-9_]+=[A-Za-z0-9._/:+-]+$` (reject/abort on any
    line containing `$`, `` ` ``, `(`, `;`, spaces, or quotes). `UPSTREAM_REPO` from
    the lock MUST equal the allowlisted constant `yearsyan/ffmpeg-android-build`,
    else abort. (To change upstream intentionally, edit the allowlist constant in the

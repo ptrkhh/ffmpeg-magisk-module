@@ -194,7 +194,7 @@ lock_get() {
   _line=$(grep -E "^${_k}=" "$LOCK_FILE" 2>/dev/null || true)
   [ -n "$_line" ] || { echo "lock: missing key $_k" >&2; return 1; }
   [ "$(printf '%s\n' "$_line" | grep -c .)" -eq 1 ] || { echo "lock: duplicate key $_k" >&2; return 1; }
-  printf '%s' "$_line" | grep -Eq '^[A-Z_]+=[A-Za-z0-9._/:+-]+$' \
+  printf '%s' "$_line" | grep -Eq '^[A-Z0-9_]+=[A-Za-z0-9._/:+-]+$' \
     || { echo "lock: malformed line for $_k" >&2; return 1; }
   printf '%s' "${_line#*=}"
 }

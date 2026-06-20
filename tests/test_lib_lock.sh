@@ -16,6 +16,8 @@ EOF
 LOCK_FILE="$tmp/ok.lock"
 [ "$(lock_get UPSTREAM_REPO)" = "yearsyan/ffmpeg-android-build" ] || fail "repo"
 [ "$(lock_get UPSTREAM_TAG)"  = "v7.1-beta.16" ] || fail "tag"
+# regression: keys containing DIGITS (e.g. ASSET_SHA512) must parse, not be rejected
+[ "$(lock_get ASSET_SHA512)" = "abc123" ] || fail "digit-containing key rejected"
 
 # malicious value must abort (command substitution attempt)
 cat > "$tmp/bad.lock" <<'EOF'
