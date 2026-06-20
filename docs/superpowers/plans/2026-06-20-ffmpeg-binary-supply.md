@@ -357,10 +357,14 @@ yes=0; [ "${2:-}" = "--yes" ] && yes=1
 REPO="$UPSTREAM_REPO_ALLOWED"
 ASSET="ffmpeg_android_aarch64_gpl.tar.gz"
 
-# (a) owner assertion (SEC-2)
-owner=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/tags/$newtag" \
-        | grep -E '"login"' | head -n1 | sed -E 's/.*"login": *"([^"]+)".*/\1/')
-[ "$owner" = "yearsyan" ] || { echo "release owner/login != yearsyan (got '$owner') — abort" >&2; exit 1; }
+# (a) provenance sanity (SEC-2): source ORG fixed by the hardcoded allowlist
+# (REPO=$UPSTREAM_REPO_ALLOWED). Do NOT assert release author identity (yearsyan
+# publishes via github-actions[bot] — brittle and weak). Assert the tag exists in the
+# repo AND publishes the expected asset (catches deleted tags / pulled assets).
+api=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/tags/$newtag") \
+  || { echo "release tag '$newtag' not found in $REPO — abort" >&2; exit 1; }
+printf '%s' "$api" | grep -qF "\"$ASSET\"" \
+  || { echo "asset '$ASSET' not present in $REPO release '$newtag' — abort" >&2; exit 1; }
 
 # (b) TOFU confirm
 if [ "$yes" -ne 1 ]; then
@@ -384,8 +388,11 @@ fp_sha=$(sha512sum "$tmp/x/$memp" | cut -d' ' -f1)
 
 # 16KB-alignment assert (MGK-7): every PT_LOAD Align must be >= 0x4000 (16384)
 assert16k() {
+  # under sh/ash, `set -e` aborts on `_bad=$(...)` when the inner while loop exits
+  # non-zero (a bare `[ ] && echo` does on a false test). Use if/fi + `|| true`.
   _bad=$(readelf -lW "$1" | awk '/LOAD/{print $NF}' | while read -r a; do
-           [ "$((a))" -lt 16384 ] && echo bad; done)
+           if [ "$((a))" -lt 16384 ]; then echo bad; fi
+         done) || true
   [ -z "$_bad" ] || { echo "16KB alignment regression in $1" >&2; exit 1; }
 }
 assert16k "$tmp/x/$memf"; assert16k "$tmp/x/$memp"
@@ -793,7 +800,10 @@ for b in ffmpeg ffprobe; do
   readelf -h "$f" | grep -q 'Class:[[:space:]]*ELF64'   || { echo "$b not ELF64" >&2; exit 1; }
   readelf -h "$f" | grep -q 'Machine:.*AArch64'         || { echo "$b not AArch64" >&2; exit 1; }
   [ -x "$f" ] || { echo "$b not executable" >&2; exit 1; }
-  bad=$(readelf -lW "$f" | awk '/LOAD/{print $NF}' | while read -r a; do [ "$((a))" -lt 16384 ] && echo bad; done)
+  # if/fi + `|| true`: under sh/ash, set -e aborts on `bad=$(...while...)` when the
+  # loop's last test is false (a bare `[ ] && echo` exits non-zero).
+  bad=$(readelf -lW "$f" | awk '/LOAD/{print $NF}' | while read -r a; do
+          if [ "$((a))" -lt 16384 ]; then echo bad; fi; done) || true
   [ -z "$bad" ] || { echo "$b LOAD align < 16KB" >&2; exit 1; }
 done
 echo "selftest ok: $zip"

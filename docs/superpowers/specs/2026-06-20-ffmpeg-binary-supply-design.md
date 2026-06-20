@@ -173,8 +173,12 @@ Explicit, ordered, **fail-closed** steps (SEC-3):
 
 TOFU / provenance controls (SEC-2), additionally in this script when used to take a
 *new* pin (i.e. invoked via `update-pin.sh`):
-- (a) Query the GitHub API for the release and **ASSERT** `release.author.login` /
-  repo owner == `yearsyan` (allowlisted constant); abort otherwise.
+- (a) The source ORG is fixed by the hardcoded `UPSTREAM_REPO_ALLOWED` constant, so
+  do NOT assert release **author identity** — yearsyan publishes via
+  `github-actions[bot]`, making an `author.login == yearsyan` check both brittle and
+  weak. Instead query the GitHub API for the release and **ASSERT the tag exists in the
+  allowlisted repo AND that it publishes the expected asset filename**; abort otherwise
+  (catches deleted tags / pulled assets — a real STOP condition).
 - (b) Print a TOFU banner — `WARNING: upstream publishes no signature/checksum; this
   pin trusts the bytes served now. Audit
   https://github.com/yearsyan/ffmpeg-android-build/releases/tag/<tag> before
