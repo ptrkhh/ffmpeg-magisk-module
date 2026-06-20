@@ -119,6 +119,27 @@ jobs:
           { echo "## $tag ($(date -u +%Y-%m-%d))"; git tag -l --format='%(contents:body)' "$tag"; echo; cat CHANGELOG.md 2>/dev/null; } > CHANGELOG.new && mv CHANGELOG.new CHANGELOG.md
           git add update.json changelog.txt CHANGELOG.md
           git commit -m "release: $tag (versionCode $vc) [skip ci]" || echo "no changes"
-          git push origin main || { git pull --rebase origin main && git push origin main; }
+          # Direct push; on non-fast-forward retry once; if main is branch-protected
+          # (push rejected), fall back to opening a PR.
+          if ! git push origin main; then
+            git pull --rebase origin main && git push origin main || {
+              br="release-bot/$tag"
+              git checkout -b "$br" && git push -u origin "$br"
+              gh pr create --base main --head "$br" \
+                --title "release: $tag updateJson" \
+                --body "Automated updateJson refresh for $tag."
+            }
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  doclint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No stale manual-flow references (CONS-9)
+        run: |
+          if grep -rniE "place (your|the) .*binary|zip -r ffmpeg-magisk" . \
+             --exclude-dir=.git --exclude-dir=docs; then
+            echo "stale manual-flow reference found"; exit 1
+          fi
