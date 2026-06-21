@@ -1,0 +1,11 @@
+* text=auto eol=lf
+META-INF/** text eol=lf
+scripts/**  text eol=lf
+*.sh        text eol=lf
+module.prop text eol=lf
+update.json text eol=lf
+changelog.txt text eol=lf
+ffmpeg.lock text eol=lf
+*.json      text eol=lf
+*.txt       text eol=lf
+system/**   binary

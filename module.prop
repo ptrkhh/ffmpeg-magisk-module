@@ -1,6 +1,7 @@
 id=ffmpeg_systemwide
-name=FFmpeg System-wide
-version=v1.0
-versionCode=1
-author=Magisk Module
-description=Installs FFmpeg binary system-wide for all apps to use. Place your ffmpeg binary in system/bin/ before flashing.
+name=FFmpeg for arm64-v8a devices
+version=v7.1.1
+versionCode=202606200
+author=ptrkhh
+description=Statically built GPL ffmpeg + ffprobe (libx264/libx265) system-wide for arm64-v8a. 16KB-page ready.
+updateJson=https://raw.githubusercontent.com/ptrkhh/ffmpeg-magisk-module/main/update.json

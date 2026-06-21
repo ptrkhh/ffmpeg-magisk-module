@@ -1,19 +1,14 @@
 #!/system/bin/sh
+# shellcheck disable=SC2154
+# FFmpeg system-wide (arm64-v8a). $ARCH is the Magisk literal: arm/arm64/x86/x64/riscv64.
+ui_print "- FFmpeg system-wide (arm64-v8a)"
 
-# FFmpeg System-wide Installation Script
-
-ui_print "- Installing FFmpeg system-wide..."
-
-# Set proper permissions for ffmpeg binary
-if [ -f "$MODPATH/system/bin/ffmpeg" ]; then
-    ui_print "- Setting permissions for ffmpeg binary..."
-    set_perm $MODPATH/system/bin/ffmpeg 0 2000 0755
-    ui_print "- FFmpeg installed successfully!"
-    ui_print "- You can now use 'ffmpeg' command system-wide"
-else
-    ui_print "! WARNING: ffmpeg binary not found in module!"
-    ui_print "! Please place your ffmpeg binary in system/bin/"
-    ui_print "! and reflash this module"
+if [ "$ARCH" != "arm64" ]; then
+  abort "! Unsupported arch '$ARCH' - this module is arm64-v8a only"
 fi
 
-ui_print "- Installation complete!"
+set_perm "$MODPATH/system/bin/ffmpeg"  0 2000 0755
+set_perm "$MODPATH/system/bin/ffprobe" 0 2000 0755
+
+ui_print "- Installed: ffmpeg, ffprobe"
+ui_print "- Test with: ffmpeg -version"

@@ -1,72 +1,73 @@
-# FFmpeg Magisk Module
+# FFmpeg Magisk Module (arm64-v8a)
 
-A ready-to-flash Magisk module that installs FFmpeg system-wide on Android devices.
+A ready-to-flash Magisk module that installs **ffmpeg** and **ffprobe** system-wide
+on arm64-v8a Android devices. Binaries are GPL builds with **libx264/libx265 encode**,
+statically self-contained, and **16 KB-page ready** (Android 15/16).
 
-## Installation Instructions
+## Install
 
-The module is ready to flash, but you need to add the ffmpeg binary first:
+1. Download the latest `FFmpeg-vX.Y.Z-for-magisk.arm64.zip` from
+   [Releases](https://github.com/ptrkhh/ffmpeg-magisk-module/releases).
+2. Magisk app → Modules → *Install from storage* → select the ZIP → reboot.
 
-1. Add your ffmpeg binary to the `system/bin` folder
-    - The binary should be named: ffmpeg
-    - Make sure it's executable and compatible with your device architecture (arm64-v8a recommended for modern devices)
-2. Make sure the binary is executable: `chmod 0755 system/bin/ffmpeg`
-3. Compress the folder: `zip -r ffmpeg-magisk-module.zip . -x '.*' -x '*/.*'`
-4. Flash via Magisk Manager:
-   - Open Magisk Manager
-   - Tap on "Modules"
-   - Tap "Install from storage"
-   - Select the ZIP file
-   - Reboot when prompted
+No manual binary step — the ZIP already contains the binaries.
+
+**In-app updates:** the module advertises `updateJson`, so Magisk shows
+"Update available" when a new release ships.
 
 ## Usage
 
-After installation and reboot, ffmpeg will be available system-wide:
+```bash
+ffmpeg -version
+ffprobe -version
+ffmpeg -i in.mp4 -c:v libx264 -crf 23 out.mp4
+```
+
+(On Magisk v28.0+, the module's **Action** button prints the installed versions.)
+
+## Build it yourself
 
 ```bash
-# Test installation
-adb shell ffmpeg -version
-
-# Or in terminal emulator e.g. Tasker Run Shell Command
-ffmpeg -version
+sh scripts/fetch-ffmpeg.sh          # download+verify the pinned binaries into system/bin/
+zip -r9 module.zip META-INF system module.prop customize.sh action.sh COPYING \
+  -x '*/.git*' -x 'system/bin/.gitkeep'
+sh scripts/selftest-zip.sh module.zip
 ```
 
-## Module Structure
+## Bumping ffmpeg
 
+```bash
+sh scripts/update-pin.sh <upstream-tag>   # rewrites ffmpeg.lock (owner+TOFU+16KB checks)
+git add ffmpeg.lock && git commit -m "build: bump ffmpeg pin"
+git tag -a vX.Y.Z -m "release notes"      # ANNOTATED tag; its body becomes changelog.txt
+git push --tags                           # CI builds + publishes the Release
 ```
-ffmpeg-magisk-module/
-├── META-INF/
-│   └── com/google/android/
-│       ├── update-binary
-│       └── updater-script
-├── system/
-│   └── bin/
-│       └── ffmpeg (place your binary here)
-├── module.prop
-└── customize.sh
-```
+
+## Tested on
+
+| Device | Android | Magisk | Result |
+|---|---|---|---|
+| _(fill in)_ | _(e.g. 14)_ | _(e.g. 27.0)_ | ffmpeg/ffprobe -version OK |
 
 ## Requirements
 
-- Magisk v20.4 or higher
-- ARM/ARM64 Android device
-- Compatible ffmpeg binary for your architecture
-
-## Notes
-
-- The module uses Magisk's systemless mounting
-- No actual system partition modification
-- Can be easily removed via Magisk Manager
-- Binary must be ARM/ARM64 compatible
-- Recommended: arm64-v8a binary for modern devices
-
-## Troubleshooting
-
-If ffmpeg doesn't work after installation:
-1. Verify the binary is actually in the ZIP before flashing
-2. Check binary permissions (should be 0755)
-3. Verify binary architecture matches your device
-4. Check Magisk logs in Magisk Manager
+- Magisk v20.4+ (install). Action button needs v28.0+.
+- arm64-v8a device. Other arches abort install.
+- ~56 MB free under `/data/adb/modules` (two ~28 MB static binaries).
+  `ffmpeg`/`ffprobe` are not part of stock Android, so nothing is shadowed.
 
 ## License
 
-This module structure is provided as-is. FFmpeg binary licensing depends on the source you obtain it from.
+The bundled `ffmpeg`/`ffprobe` are **GPL** builds (libx264 GPLv2+, libx265 GPLv2+),
+so the combined work is **GPLv2-or-later**; `nonfree` is NOT enabled. See `COPYING`.
+
+Binaries are pinned from [yearsyan/ffmpeg-android-build](https://github.com/yearsyan/ffmpeg-android-build)
+(see `ffmpeg.lock`). Corresponding source for each release is attached to the GitHub
+Release (GPLv2 §3). This module is supplied by a single upstream maintainer with no
+independent signature; for stronger provenance, build from source.
+
+## Troubleshooting
+
+- *Won't install ("Unsupported arch")*: device is not arm64-v8a — unsupported.
+- *`ffmpeg: not found` after reboot*: confirm the module is enabled in Magisk; check Magisk logs.
+- *Action button missing*: requires Magisk v28.0+; use `ffmpeg -version` in a terminal instead.

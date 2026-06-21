@@ -1,0 +1,148 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lint shell
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y shellcheck
+          shellcheck --shell=sh customize.sh action.sh scripts/*.sh
+          # update-binary is the stock Magisk template; check it for syntax-level errors
+          # only (CI-7), not style nits in boilerplate we don't own.
+          shellcheck --shell=sh --severity=error META-INF/com/google/android/update-binary
+
+      - name: Unit tests
+        run: for t in tests/test_*.sh; do echo "== $t =="; sh "$t" || exit 1; done
+
+      - name: Fetch + verify binaries
+        run: sh scripts/fetch-ffmpeg.sh
+
+      - name: Assert system/bin holds exactly the two binaries
+        run: |
+          found=$(find system/bin -maxdepth 1 -type f ! -name '.gitkeep' -printf '%f\n' | sort | tr '\n' ' ')
+          test "$found" = "ffmpeg ffprobe " || { echo "unexpected: [$found]"; exit 1; }
+
+      - name: Compute versionCode (strictly increasing; guard folded in)
+        id: vc
+        run: |
+          git fetch origin main --depth=1 || true
+          # last published versionCode (seed update.json on main; 0 if none)
+          old=$(git show origin/main:update.json 2>/dev/null \
+                | grep -oE '"versionCode"[^0-9]*[0-9]+' | grep -oE '[0-9]+$' || echo 0)
+          today=$(date -u +%Y%m%d)
+          # R = prior same-day release count (spec §12.3): if old is in today's band,
+          # increment its R; else reset to 0. Guarantees vc > old (same day) and
+          # vc > old (new day, since today*10 > old).
+          if [ "$((old / 10))" -eq "$today" ]; then r=$(( (old % 10) + 1 )); else r=0; fi
+          [ "$r" -le 9 ] || { echo "more than 10 releases in one day"; exit 1; }
+          vc=$(sh scripts/versioncode.sh "$today" "$r")
+          test "$vc" -gt "$old" || { echo "versionCode $vc !> published $old"; exit 1; }
+          echo "versioncode=$vc" >> "$GITHUB_OUTPUT"
+          echo "ffmpeg_version=$(grep '^FFMPEG_VERSION=' ffmpeg.lock | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp module.prop
+        run: |
+          v="${{ steps.vc.outputs.ffmpeg_version }}"
+          vc="${{ steps.vc.outputs.versioncode }}"
+          sed -i -E "s/^version=.*/version=v$v/" module.prop
+          sed -i -E "s/^versionCode=.*/versionCode=$vc/" module.prop
+          grep -E '^(version|versionCode)=' module.prop
+
+      - name: Package ZIP
+        run: |
+          v="${{ steps.vc.outputs.ffmpeg_version }}"
+          zip -r9 "FFmpeg-v$v-for-magisk.arm64.zip" \
+            META-INF system module.prop customize.sh action.sh COPYING \
+            -x '*/.git*' -x 'system/bin/.gitkeep'
+
+      - name: Self-test ZIP
+        run: |
+          sudo apt-get install -y binutils file
+          sh scripts/selftest-zip.sh "FFmpeg-v${{ steps.vc.outputs.ffmpeg_version }}-for-magisk.arm64.zip"
+
+      - name: Dry-run stops here
+        if: github.ref_type != 'tag'
+        run: echo "workflow_dispatch dry-run complete (no release published)"
+
+      - name: SHA256 sidecar
+        if: github.ref_type == 'tag'
+        run: sha256sum "FFmpeg-v${{ steps.vc.outputs.ffmpeg_version }}-for-magisk.arm64.zip" > SHA256SUMS.txt
+
+      - name: Build corresponding-source archive (GPLv2 §3)
+        if: github.ref_type == 'tag'
+        run: |
+          tag=$(grep '^UPSTREAM_TAG=' ffmpeg.lock | cut -d= -f2)
+          repo=$(grep '^UPSTREAM_REPO=' ffmpeg.lock | cut -d= -f2)
+          curl -fL --proto '=https' --tlsv1.2 -o "corresponding-source-$tag.tar.gz" \
+            "https://github.com/$repo/archive/refs/tags/$tag.tar.gz"
+          echo "CS_FILE=corresponding-source-$tag.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Publish Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            FFmpeg-v${{ steps.vc.outputs.ffmpeg_version }}-for-magisk.arm64.zip
+            SHA256SUMS.txt
+            ${{ env.CS_FILE }}
+
+      - name: Refresh update.json + changelog on main
+        if: github.ref_type == 'tag'
+        run: |
+          v="${{ steps.vc.outputs.ffmpeg_version }}"; vc="${{ steps.vc.outputs.versioncode }}"; tag="${{ github.ref_name }}"
+          git config user.name  github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin main && git checkout main && git pull --rebase origin main
+          cat > update.json <<EOF
+          {
+            "version": "v$v",
+            "versionCode": $vc,
+            "zipUrl": "https://github.com/${{ github.repository }}/releases/download/$tag/FFmpeg-v$v-for-magisk.arm64.zip",
+            "changelog": "https://raw.githubusercontent.com/${{ github.repository }}/main/changelog.txt"
+          }
+          EOF
+          { echo "$tag ($(date -u +%Y-%m-%d))"; git tag -l --format='%(contents:body)' "$tag"; } > changelog.txt
+          { echo "## $tag ($(date -u +%Y-%m-%d))"; git tag -l --format='%(contents:body)' "$tag"; echo; cat CHANGELOG.md 2>/dev/null; } > CHANGELOG.new && mv CHANGELOG.new CHANGELOG.md
+          git add update.json changelog.txt CHANGELOG.md
+          git commit -m "release: $tag (versionCode $vc) [skip ci]" || echo "no changes"
+          # Direct push; on non-fast-forward retry once; if main is branch-protected
+          # (push rejected), fall back to opening a PR.
+          if ! git push origin main; then
+            git pull --rebase origin main && git push origin main || {
+              br="release-bot/$tag"
+              git checkout -b "$br" && git push -u origin "$br"
+              gh pr create --base main --head "$br" \
+                --title "release: $tag updateJson" \
+                --body "Automated updateJson refresh for $tag."
+            }
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  doclint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No stale manual-flow references (CONS-9)
+        run: |
+          if grep -rniE "place (your|the) .*binary|zip -r ffmpeg-magisk" . \
+             --exclude-dir=.git --exclude-dir=docs --exclude-dir=.github; then
+            echo "stale manual-flow reference found"; exit 1
+          fi

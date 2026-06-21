@@ -33,4 +33,8 @@ google-services.json
 # Android Profiling
 *.hprof
 .claude/
-system/bin/ffmpeg
+system/bin/*
+!system/bin/.gitkeep
+
+# GPLv2 §3 corresponding-source archive (rebuilt by update-pin.sh / CI, attached to Release)
+corresponding-source-*.tar.gz
